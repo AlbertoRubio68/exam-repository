@@ -1,0 +1,12 @@
+/* Estilos globales: Tailwind CSS + ajustes base sobre Angular Material. */
+@use 'tailwindcss';
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+}
