@@ -61,3 +61,21 @@ export function buildPdfPageLink(pdfUrl: string, page: number): string {
   const withoutFragment = pdfUrl.split('#')[0];
   return `${withoutFragment}#page=${target}`;
 }
+
+/**
+ * Resuelve la ruta del PDF contra el `base href` del documento.
+ *
+ * El JSON de datos guarda una ruta relativa (`documents/...`) para que el
+ * despliegue en un subdirectorio (GitHub Pages: `/exam-repository/`) siga
+ * funcionando. Si la URL ya es absoluta (http/https) se devuelve tal cual.
+ */
+export function resolvePdfUrl(pdfUrl: string): string {
+  if (!pdfUrl || /^[a-z][a-z0-9+.-]*:/i.test(pdfUrl)) {
+    return pdfUrl;
+  }
+  try {
+    return new URL(pdfUrl, document.baseURI).toString();
+  } catch {
+    return pdfUrl;
+  }
+}

@@ -1,3 +1,15 @@
 :host {
   display: block;
+  height: 100dvh;
+}
+
+/*
+ * Columna oculta en pantallas pequeñas (Tailwind `lg` = 1024px).
+ * Se resuelve con media query propia para que la pestaña activa tenga prioridad sobre las
+ * utilidades `hidden`/`block` de Tailwind sin depender del orden de generación del CSS.
+ */
+@media (max-width: 1023.98px) {
+  .pane--collapsed {
+    display: none;
+  }
 }

@@ -1,17 +1,25 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { ExamQuestion } from '../../models/exam.model';
 
 /** Letras usadas para etiquetar las opciones de respuesta (A, B, C, D...). */
 const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
+/** Selección emitida al marcar una opción. */
+export interface AnswerSelection {
+  /** `id` de la pregunta respondida. */
+  questionId: number;
+  /** Índice (0-based) de la opción marcada. */
+  optionIndex: number;
+}
+
 /**
  * Panel de preguntas del layout split-screen (columna izquierda).
  *
- * Responsabilidades de esta fase (F2): pintar la pregunta actual, sus opciones, el indicador
- * de progreso y la navegación básica (anterior / siguiente / selector de número).
- *
- * La selección de respuestas se guarda de forma **efímera** en el componente (solo para dar
- * feedback visual). La corrección, la persistencia y el estado del examen son de la Fase 4.
+ * Pinta la pregunta actual, sus opciones, el indicador de progreso y la
+ * navegación (anterior / siguiente / selector de número). Es un componente
+ * controlado: las respuestas marcadas llegan por `answers` y cada clic se
+ * notifica con `answerSelected`; el estado real vive en `ExamStateService`
+ * (F4.1), que también decide si las respuestas están bloqueadas (`locked`).
  */
 @Component({
   selector: 'app-question-panel',
@@ -26,11 +34,17 @@ export class QuestionPanel {
   /** Índice (0-based) de la pregunta visible. */
   readonly index = input.required<number>();
 
+  /** Respuestas guardadas (`id` de pregunta → índice de la opción). */
+  readonly answers = input<ReadonlyMap<number, number>>(new Map());
+
+  /** `true` cuando las respuestas ya no se pueden modificar (examen entregado). */
+  readonly locked = input(false);
+
   /** Emite el nuevo índice cuando el usuario navega a otra pregunta. */
   readonly indexChange = output<number>();
 
-  /** Opción elegida por pregunta (id → índice de opción). Estado solo de interfaz. */
-  private readonly selection = signal<ReadonlyMap<number, number>>(new Map());
+  /** Emite la opción marcada por el usuario. */
+  readonly answerSelected = output<AnswerSelection>();
 
   readonly total = computed(() => this.questions().length);
 
@@ -55,12 +69,15 @@ export class QuestionPanel {
 
   /** `true` si la opción está marcada para la pregunta indicada. */
   isSelected(question: ExamQuestion, optionIndex: number): boolean {
-    return this.selection().get(question.id) === optionIndex;
+    return this.answers().get(question.id) === optionIndex;
   }
 
-  /** Guarda la opción marcada por el usuario. */
+  /** Notifica la opción marcada por el usuario. */
   select(question: ExamQuestion, optionIndex: number): void {
-    this.selection.update((current) => new Map(current).set(question.id, optionIndex));
+    if (this.locked()) {
+      return;
+    }
+    this.answerSelected.emit({ questionId: question.id, optionIndex });
   }
 
   /** Navega a un índice concreto, acotándolo al rango válido de preguntas. */

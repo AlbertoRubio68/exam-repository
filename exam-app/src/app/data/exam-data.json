@@ -1,7 +1,7 @@
 {
   "examId": "agents-rurals-01-23-model-a",
   "title": "Accés a l'escala bàsica del Cos d'Agents Rurals (01/23) — Qüestionari de coneixements, Model A",
-  "pdfUrl": "/documents/questionari-coneixements-model-a.pdf",
+  "pdfUrl": "documents/questionari-coneixements-model-a.pdf",
   "questions": [
     {
       "id": 1,

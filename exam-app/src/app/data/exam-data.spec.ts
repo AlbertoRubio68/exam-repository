@@ -4,10 +4,12 @@ import examData from './exam-data.json';
 const exam = examData as unknown as ExamConfig;
 
 describe('exam-data.json', () => {
-  it('declara los metadatos del examen y apunta a un PDF servido desde public/', () => {
+  it('declara los metadatos del examen y una ruta de PDF relativa al base-href', () => {
     expect(exam.examId).toBe('agents-rurals-01-23-model-a');
     expect(exam.title.length).toBeGreaterThan(0);
-    expect(exam.pdfUrl).toBe('/documents/questionari-coneixements-model-a.pdf');
+    // Ruta relativa: GitHub Pages sirve la app bajo /exam-repository/.
+    expect(exam.pdfUrl).toBe('documents/questionari-coneixements-model-a.pdf');
+    expect(exam.pdfUrl.startsWith('/')).toBe(false);
   });
 
   it('contiene las 80 preguntas del qüestionari de coneixements (Model A)', () => {

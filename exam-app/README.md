@@ -30,10 +30,16 @@ npx ng test --watch=false
 
 ```
 src/app/
-├── app.ts / app.html        # shell: cabecera + layout split-screen (Tailwind)
+├── app.ts / app.html        # shell raíz: solo <router-outlet> (ruta raíz perezosa)
 ├── components/
+│   ├── exam-runner/         # ruta raíz: cabecera, temporizador y split-screen (F2) + estado F4
+│   ├── exam-results/        # revisión y corrección del examen (F4.2)
 │   ├── question-panel/      # columna izquierda: pregunta, opciones y navegación
 │   └── pdf-viewer/          # columna derecha: visor del temario con PDF.js
+├── services/
+│   ├── exam-state.service.ts       # respuestas, navegación y temporizador (F4.1)
+│   ├── exam-scoring.ts             # gradeExam(): corrección pura (F4.2)
+│   └── pdf-navigation.service.ts   # bus de salto de página al visor (F4.2/F3)
 ├── models/exam.model.ts     # ExamConfig, ExamQuestion, PdfReference
 ├── data/exam-data.json      # examen real (80 preguntas, Model A)
 └── data/exam-data.spec.ts   # validación del JSON contra el modelo
@@ -46,7 +52,10 @@ scripts/                     # utilidades de extracción/regeneración de datos
 
 - Escritorio (`lg`, ≥ 1024 px): dos columnas iguales con `lg:grid lg:grid-cols-2`.
 - Móvil / tablet: pestañas «Preguntes» / «Temari PDF» que alternan la columna visible
-  (`pane--collapsed`). La maquetación se valida en `src/app/app.spec.ts`.
+  (`pane--collapsed`). La maquetación se valida en `exam-runner.spec.ts`.
+- El panel derecho monta el visor real (`app-pdf-viewer`) y `ExamRunner` lo registra en
+  `PdfNavigationService.registerViewer(...)`: los saltos de página del cuestionario y de la
+  revisión se resuelven en el propio visor, sin abrir pestañas nuevas.
 
 ## Visor PDF (Fase 3)
 
@@ -138,9 +147,10 @@ El workflow `deploy-pages.yml` usa la fuente de publicación **GitHub Actions**:
 
 El despliegue solo se ejecuta cuando el build, el lint y los tests pasan.
 
-> **Nota (pendiente Fase 3):** `src/app/data/exam-data.json` define `pdfUrl` como ruta absoluta
-> (`/documents/...`). Para que el visor PDF funcione bajo el subpath de Pages habrá que convertirla
-> en relativa (`documents/...`) o derivarla del `base href` cuando se integre el visor.
+> **Rutas del PDF:** `src/app/data/exam-data.json` guarda `pdfUrl` como ruta **relativa**
+> (`documents/...`) y `resolvePdfUrl()` (en `pdf-navigation.service.ts`) la resuelve contra el
+> `base href`. Así el visor y los enlaces `#page=N` funcionan tanto en local como bajo el
+> subdirectorio de GitHub Pages (`/exam-repository/`).
 
 ## Corrección y revisión (F4.2)
 

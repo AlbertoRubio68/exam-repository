@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ExamQuestion } from '../../models/exam.model';
-import { QuestionPanel } from './question-panel';
+import { AnswerSelection, QuestionPanel } from './question-panel';
 
 const questions: ExamQuestion[] = [
   {
@@ -33,10 +33,14 @@ const questions: ExamQuestion[] = [
 function createPanel(
   index = 0,
   source: readonly ExamQuestion[] = questions,
+  answers: ReadonlyMap<number, number> = new Map(),
+  locked = false,
 ): ComponentFixture<QuestionPanel> {
   const fixture = TestBed.createComponent(QuestionPanel);
   fixture.componentRef.setInput('questions', source);
   fixture.componentRef.setInput('index', index);
+  fixture.componentRef.setInput('answers', answers);
+  fixture.componentRef.setInput('locked', locked);
   fixture.detectChanges();
   return fixture;
 }
@@ -80,8 +84,7 @@ describe('QuestionPanel', () => {
     const first = createPanel(0);
     const firstElement = first.nativeElement as HTMLElement;
     expect(
-      (firstElement.querySelector('[data-testid="previous-question"]') as HTMLButtonElement)
-        .disabled,
+      (firstElement.querySelector('[data-testid="previous-question"]') as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(
       (firstElement.querySelector('[data-testid="next-question"]') as HTMLButtonElement).disabled,
@@ -90,21 +93,30 @@ describe('QuestionPanel', () => {
     const last = createPanel(questions.length - 1);
     const lastElement = last.nativeElement as HTMLElement;
     expect(
-      (lastElement.querySelector('[data-testid="previous-question"]') as HTMLButtonElement)
-        .disabled,
+      (lastElement.querySelector('[data-testid="previous-question"]') as HTMLButtonElement).disabled,
     ).toBe(false);
     expect(
       (lastElement.querySelector('[data-testid="next-question"]') as HTMLButtonElement).disabled,
     ).toBe(true);
   });
 
-  it('marca la opción elegida y conserva la selección al cambiar de pregunta', () => {
-    const fixture = createPanel(0);
+  it('emite la opción marcada sin guardar estado propio', () => {
+    const fixture = createPanel();
+    const element = fixture.nativeElement as HTMLElement;
+    const emitted: AnswerSelection[] = [];
+    fixture.componentInstance.answerSelected.subscribe((value) => emitted.push(value));
+
+    element.querySelectorAll<HTMLInputElement>('input[type="radio"]')[2].click();
+
+    expect(emitted).toEqual([{ questionId: 1, optionIndex: 2 }]);
+  });
+
+  it('refleja las respuestas recibidas y conserva la selección al cambiar de pregunta', () => {
+    const answers = new Map<number, number>([[1, 2]]);
+    const fixture = createPanel(0, questions, answers);
     const element = fixture.nativeElement as HTMLElement;
     const radios = () => element.querySelectorAll<HTMLInputElement>('input[type="radio"]');
 
-    radios()[2].click();
-    fixture.detectChanges();
     expect(radios()[2].checked).toBe(true);
     expect(fixture.componentInstance.isSelected(questions[0], 2)).toBe(true);
     expect(fixture.componentInstance.isSelected(questions[0], 0)).toBe(false);
@@ -116,6 +128,20 @@ describe('QuestionPanel', () => {
     fixture.componentRef.setInput('index', 0);
     fixture.detectChanges();
     expect(radios()[2].checked).toBe(true);
+  });
+
+  it('bloquea las respuestas cuando el examen está entregado', () => {
+    const fixture = createPanel(0, questions, new Map([[1, 1]]), true);
+    const element = fixture.nativeElement as HTMLElement;
+    const emitted: AnswerSelection[] = [];
+    fixture.componentInstance.answerSelected.subscribe((value) => emitted.push(value));
+
+    element.querySelectorAll<HTMLInputElement>('input[type="radio"]')[2].click();
+
+    expect(emitted).toEqual([]);
+    expect(
+      element.querySelectorAll<HTMLInputElement>('input[type="radio"]')[2].disabled,
+    ).toBe(true);
   });
 
   it('avisa cuando la pregunta está anulada', () => {
