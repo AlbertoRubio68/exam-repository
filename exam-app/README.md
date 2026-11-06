@@ -3,7 +3,9 @@
 SPA en Angular (standalone components) para realizar exámenes tipo test sincronizados con un visor PDF.
 Especificación: [`docs/specs/exam_app_architecture_spec.md`](../docs/specs/exam_app_architecture_spec.md).
 
-Esta fase (Fase 1) contiene únicamente el workspace, el modelo de datos y el JSON con el examen real.
+Esta fase (integración F2 + F3 + F4) reúne el workspace, el modelo de datos con el JSON del
+examen real, la maquetación responsive split-screen (panel de preguntas a la izquierda y visor PDF
+a la derecha, 50/50 en escritorio y pestañas en móvil) y el visor PDF.js integrado.
 
 ## Stack
 
@@ -12,7 +14,7 @@ Esta fase (Fase 1) contiene únicamente el workspace, el modelo de datos y el JS
 | Angular | 22.2 (standalone, TypeScript estricto) |
 | Angular Material | 22.2 (tema precompilado `azure-blue`) |
 | Tailwind CSS | 4.x (vía `@tailwindcss/postcss`) |
-| Visor PDF | `pdfjs-dist` 6.x (se integra en la Fase 3) |
+| Visor PDF | `pdfjs-dist` 6.x (visor PDF.js en canvas, Fase 3) |
 | Tests | Vitest + jsdom (`ng test`) |
 
 ## Puesta en marcha
@@ -28,6 +30,16 @@ npx ng test --watch=false
 
 ```
 src/app/
+├── app.ts / app.html        # shell raíz: solo <router-outlet> (ruta raíz perezosa)
+├── components/
+│   ├── exam-runner/         # ruta raíz: cabecera, temporizador y split-screen (F2) + estado F4
+│   ├── exam-results/        # revisión y corrección del examen (F4.2)
+│   ├── question-panel/      # columna izquierda: pregunta, opciones y navegación
+│   └── pdf-viewer/          # columna derecha: visor del temario con PDF.js
+├── services/
+│   ├── exam-state.service.ts       # respuestas, navegación y temporizador (F4.1)
+│   ├── exam-scoring.ts             # gradeExam(): corrección pura (F4.2)
+│   └── pdf-navigation.service.ts   # bus de salto de página al visor (F4.2/F3)
 ├── models/exam.model.ts     # ExamConfig, ExamQuestion, PdfReference
 ├── data/exam-data.json      # examen real (80 preguntas, Model A)
 └── data/exam-data.spec.ts   # validación del JSON contra el modelo
@@ -35,6 +47,44 @@ public/documents/
 └── questionari-coneixements-model-a.pdf   # cuadernillo servido al visor (31 pág.)
 scripts/                     # utilidades de extracción/regeneración de datos
 ```
+
+### Layout split-screen
+
+- Escritorio (`lg`, ≥ 1024 px): dos columnas iguales con `lg:grid lg:grid-cols-2`.
+- Móvil / tablet: pestañas «Preguntes» / «Temari PDF» que alternan la columna visible
+  (`pane--collapsed`). La maquetación se valida en `exam-runner.spec.ts`.
+- El panel derecho monta el visor real (`app-pdf-viewer`) y `ExamRunner` lo registra en
+  `PdfNavigationService.registerViewer(...)`: los saltos de página del cuestionario y de la
+  revisión se resuelven en el propio visor, sin abrir pestañas nuevas.
+
+## Visor PDF (Fase 3)
+
+`PdfViewer` (`app-pdf-viewer`) es un componente standalone que renderiza el PDF
+con `pdfjs-dist` sobre un `<canvas>`:
+
+```html
+<app-pdf-viewer
+  [pdfUrl]="'documents/questionari-coneixements-model-a.pdf'"
+  [initialPage]="1"
+  (pageChange)="onPageChange($event)"
+/>
+```
+
+- `goToPage(page: number)` es el método público de salto: ajusta el número al
+  rango válido (`1..numPages`) y, si el documento aún se está cargando, aplica el
+  salto en cuanto termina la carga.
+- `pageChange` emite la página (1-based) cada vez que el visor muestra una nueva.
+- `goToPage` está pensado para conectarse desde otros componentes (referencias
+  del cuestionario o revisión) mediante `@ViewChild`, o registrando el visor en
+  el servicio de navegación de la Fase 4 con
+  `registerViewer((page) => viewer.goToPage(page))`.
+- El ancho de página se adapta al contenedor y se re-renderiza al redimensionar.
+
+Los recursos auxiliares de PDF.js (worker, `cmaps`, `standard_fonts`, `wasm` e
+`iccs`) se copian desde `node_modules/pdfjs-dist` a `/pdfjs/**` en el build
+(ver `assets` en `angular.json`), resolviéndose con rutas relativas a la base del
+documento para funcionar también bajo un subdirectorio (GitHub Pages). El módulo
+`pdfjs-dist` se importa de forma diferida, por lo que queda en un chunk aparte.
 
 ## Datos del examen
 
@@ -97,6 +147,47 @@ El workflow `deploy-pages.yml` usa la fuente de publicación **GitHub Actions**:
 
 El despliegue solo se ejecuta cuando el build, el lint y los tests pasan.
 
-> **Nota (pendiente Fase 3):** `src/app/data/exam-data.json` define `pdfUrl` como ruta absoluta
-> (`/documents/...`). Para que el visor PDF funcione bajo el subpath de Pages habrá que convertirla
-> en relativa (`documents/...`) o derivarla del `base href` cuando se integre el visor.
+> **Rutas del PDF:** `src/app/data/exam-data.json` guarda `pdfUrl` como ruta **relativa**
+> (`documents/...`) y `resolvePdfUrl()` (en `pdf-navigation.service.ts`) la resuelve contra el
+> `base href`. Así el visor y los enlaces `#page=N` funcionan tanto en local como bajo el
+> subdirectorio de GitHub Pages (`/exam-repository/`).
+
+## Corrección y revisión (F4.2)
+
+La pantalla del examen (`src/app/components/exam-runner/`) permite responder, navegar entre
+preguntas y pulsar **Comprovar resultats**. La corrección se muestra en
+`src/app/components/exam-results/`: nota, aciertos, fallos, preguntas en blanco y anuladas, más
+la revisión de cada pregunta con la respuesta marcada, la correcta y su justificación.
+
+### Cálculo de resultados
+
+`src/app/services/exam-scoring.ts` expone `gradeExam(questions, answers)`, una función pura sin
+dependencias de Angular:
+
+- Las preguntas anuladas (`annulled: true` / `correctAnswer: null`) no puntúan.
+- Acierto: la opción marcada coincide con `correctAnswer`.
+- Fallo: la opción marcada es válida pero distinta de la correcta.
+- En blanco: sin respuesta o con un índice inexistente/fuera de rango.
+- No hay penalización: `nota = aciertos / preguntas que puntúan × 10`.
+
+`answers` acepta un `Map<number, number>` o un objeto plano `Record<number, number>` indexado por
+`id` de pregunta, que es el contrato previsto con el estado del examen (F4.1).
+
+### Salto a la página del PDF
+
+Cada pregunta de la revisión es clicable y salta a su `pdfReference.page`. El salto se delega en
+`src/app/services/pdf-navigation.service.ts`:
+
+- Con el visor PDF (F3) montado, este se registra una sola vez:
+
+  ```ts
+  private readonly unregister = this.pdfNavigation.registerViewer((page) =>
+    this.viewer.goToPage(page),
+  );
+  // ngOnDestroy(): this.unregister();
+  ```
+
+- Sin visor conectado (o mientras la F3 no está integrada), el componente abre
+  `<pdfUrl>#page=N` en una pestaña nueva. El componente también emite `referenceJumped` con la
+  `PdfReference` para que el contenedor pueda reaccionar sin usar el servicio.
+
