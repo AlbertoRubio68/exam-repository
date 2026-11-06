@@ -3,9 +3,9 @@
 SPA en Angular (standalone components) para realizar exámenes tipo test sincronizados con un visor PDF.
 Especificación: [`docs/specs/exam_app_architecture_spec.md`](../docs/specs/exam_app_architecture_spec.md).
 
-Esta fase (Fase 2) contiene el workspace, el modelo de datos con el JSON del examen real y la
-maquetación responsive split-screen: panel de preguntas a la izquierda y visor PDF a la derecha
-(50/50 en escritorio, pestañas en móvil).
+Esta fase (integración F2 + F3 + F4) reúne el workspace, el modelo de datos con el JSON del
+examen real, la maquetación responsive split-screen (panel de preguntas a la izquierda y visor PDF
+a la derecha, 50/50 en escritorio y pestañas en móvil) y el visor PDF.js integrado.
 
 ## Stack
 
@@ -14,7 +14,7 @@ maquetación responsive split-screen: panel de preguntas a la izquierda y visor 
 | Angular | 22.2 (standalone, TypeScript estricto) |
 | Angular Material | 22.2 (tema precompilado `azure-blue`) |
 | Tailwind CSS | 4.x (vía `@tailwindcss/postcss`) |
-| Visor PDF | `pdfjs-dist` 6.x (se integra en la Fase 3) |
+| Visor PDF | `pdfjs-dist` 6.x (visor PDF.js en canvas, Fase 3) |
 | Tests | Vitest + jsdom (`ng test`) |
 
 ## Puesta en marcha
@@ -33,7 +33,7 @@ src/app/
 ├── app.ts / app.html        # shell: cabecera + layout split-screen (Tailwind)
 ├── components/
 │   ├── question-panel/      # columna izquierda: pregunta, opciones y navegación
-│   └── pdf-viewer/          # columna derecha: visor del temario (iframe en F2)
+│   └── pdf-viewer/          # columna derecha: visor del temario con PDF.js
 ├── models/exam.model.ts     # ExamConfig, ExamQuestion, PdfReference
 ├── data/exam-data.json      # examen real (80 preguntas, Model A)
 └── data/exam-data.spec.ts   # validación del JSON contra el modelo
@@ -47,6 +47,35 @@ scripts/                     # utilidades de extracción/regeneración de datos
 - Escritorio (`lg`, ≥ 1024 px): dos columnas iguales con `lg:grid lg:grid-cols-2`.
 - Móvil / tablet: pestañas «Preguntes» / «Temari PDF» que alternan la columna visible
   (`pane--collapsed`). La maquetación se valida en `src/app/app.spec.ts`.
+
+## Visor PDF (Fase 3)
+
+`PdfViewer` (`app-pdf-viewer`) es un componente standalone que renderiza el PDF
+con `pdfjs-dist` sobre un `<canvas>`:
+
+```html
+<app-pdf-viewer
+  [pdfUrl]="'documents/questionari-coneixements-model-a.pdf'"
+  [initialPage]="1"
+  (pageChange)="onPageChange($event)"
+/>
+```
+
+- `goToPage(page: number)` es el método público de salto: ajusta el número al
+  rango válido (`1..numPages`) y, si el documento aún se está cargando, aplica el
+  salto en cuanto termina la carga.
+- `pageChange` emite la página (1-based) cada vez que el visor muestra una nueva.
+- `goToPage` está pensado para conectarse desde otros componentes (referencias
+  del cuestionario o revisión) mediante `@ViewChild`, o registrando el visor en
+  el servicio de navegación de la Fase 4 con
+  `registerViewer((page) => viewer.goToPage(page))`.
+- El ancho de página se adapta al contenedor y se re-renderiza al redimensionar.
+
+Los recursos auxiliares de PDF.js (worker, `cmaps`, `standard_fonts`, `wasm` e
+`iccs`) se copian desde `node_modules/pdfjs-dist` a `/pdfjs/**` en el build
+(ver `assets` en `angular.json`), resolviéndose con rutas relativas a la base del
+documento para funcionar también bajo un subdirectorio (GitHub Pages). El módulo
+`pdfjs-dist` se importa de forma diferida, por lo que queda en un chunk aparte.
 
 ## Datos del examen
 
