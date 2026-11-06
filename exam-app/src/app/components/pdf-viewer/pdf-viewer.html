@@ -1,0 +1,53 @@
+<section class="pdf-viewer" [attr.aria-busy]="loading() || rendering()">
+  <header class="pdf-viewer__toolbar">
+    <button
+      type="button"
+      class="pdf-viewer__nav"
+      (click)="previousPage()"
+      [disabled]="!hasPrevious()"
+      aria-label="Pàgina anterior"
+    >
+      ‹
+    </button>
+
+    <span class="pdf-viewer__pages" aria-live="polite">
+      @if (pageCount() > 0) {
+        Pàgina {{ currentPage() }} de {{ pageCount() }}
+      } @else {
+        —
+      }
+    </span>
+
+    <button
+      type="button"
+      class="pdf-viewer__nav"
+      (click)="nextPage()"
+      [disabled]="!hasNext()"
+      aria-label="Pàgina següent"
+    >
+      ›
+    </button>
+  </header>
+
+  <div #surface class="pdf-viewer__surface">
+    @if (loading()) {
+      <p class="pdf-viewer__status" role="status">Carregant el document…</p>
+    }
+
+    @if (error(); as message) {
+      <p class="pdf-viewer__error" role="alert">{{ message }}</p>
+    }
+
+    @if (rendering() && !loading()) {
+      <span class="pdf-viewer__spinner" aria-hidden="true"></span>
+    }
+
+    <canvas
+      #canvas
+      class="pdf-viewer__canvas"
+      role="img"
+      [attr.aria-label]="'Pàgina ' + currentPage() + ' del document PDF'"
+      [hidden]="pageCount() === 0 || !!error()"
+    ></canvas>
+  </div>
+</section>
