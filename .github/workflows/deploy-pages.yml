@@ -1,0 +1,72 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: exam-app
+
+jobs:
+  build:
+    name: Build del sitio
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: exam-app/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm run test:ci
+
+      - name: Configurar GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v6
+
+      - name: Build para GitHub Pages
+        run: npm run build -- --base-href="${{ steps.pages.outputs.base_path }}/"
+
+      - name: Fallback SPA (404.html)
+        run: cp dist/exam-app/browser/index.html dist/exam-app/browser/404.html
+
+      - name: Subir artefacto de Pages
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: exam-app/dist/exam-app/browser
+
+  deploy:
+    name: Despliegue
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Desplegar en GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

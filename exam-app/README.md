@@ -65,3 +65,38 @@ node scripts/build-exam-data.mjs /tmp/questions.json /tmp/corrections.json src/a
 
 `build-exam-data.mjs` falla si el número de preguntas, las opciones o las respuestas de la plantilla no cuadran,
 de modo que el JSON no se puede generar a medias.
+
+## CI/CD (GitHub Actions)
+
+El repositorio define dos workflows en `.github/workflows/`:
+
+| Workflow | Fichero | Disparadores | Qué hace |
+| --- | --- | --- | --- |
+| CI | `ci.yml` | `push` a `main`, PRs contra `main`, manual | `npm ci` → `lint` → `test:ci` → `build` y publica el artefacto `exam-app-dist` |
+| Deploy GitHub Pages | `deploy-pages.yml` | `push` a `main`, manual | `npm ci` → `lint` → `test:ci` → `build` con `--base-href` del sitio → despliegue en Pages |
+
+Comandos locales equivalentes:
+
+```bash
+npm ci
+npm run lint          # ESLint (angular-eslint + typescript-eslint, flat config)
+npm run test:ci       # ng test --watch=false
+npm run build
+```
+
+### Requisitos para el despliegue
+
+El workflow `deploy-pages.yml` usa la fuente de publicación **GitHub Actions**:
+
+1. En el repositorio: *Settings → Pages → Build and deployment → Source: **GitHub Actions***.
+2. El entorno `github-pages` debe permitir el despliegue desde `main` (por defecto, sí).
+3. GitHub Pages en repositorios **privados** requiere un plan de pago (Pro/Team/Enterprise).
+4. El `base-href` se toma de `actions/configure-pages` (`base_path`), de modo que el sitio funciona
+   tanto en `https://<usuario>.github.io/<repo>/` como con un dominio propio. Se genera además un
+   `404.html` copia de `index.html` para el fallback de rutas SPA.
+
+El despliegue solo se ejecuta cuando el build, el lint y los tests pasan.
+
+> **Nota (pendiente Fase 3):** `src/app/data/exam-data.json` define `pdfUrl` como ruta absoluta
+> (`/documents/...`). Para que el visor PDF funcione bajo el subpath de Pages habrá que convertirla
+> en relativa (`documents/...`) o derivarla del `base href` cuando se integre el visor.
