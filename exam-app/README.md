@@ -141,3 +141,43 @@ El despliegue solo se ejecuta cuando el build, el lint y los tests pasan.
 > **Nota (pendiente Fase 3):** `src/app/data/exam-data.json` define `pdfUrl` como ruta absoluta
 > (`/documents/...`). Para que el visor PDF funcione bajo el subpath de Pages habrá que convertirla
 > en relativa (`documents/...`) o derivarla del `base href` cuando se integre el visor.
+
+## Corrección y revisión (F4.2)
+
+La pantalla del examen (`src/app/components/exam-runner/`) permite responder, navegar entre
+preguntas y pulsar **Comprovar resultats**. La corrección se muestra en
+`src/app/components/exam-results/`: nota, aciertos, fallos, preguntas en blanco y anuladas, más
+la revisión de cada pregunta con la respuesta marcada, la correcta y su justificación.
+
+### Cálculo de resultados
+
+`src/app/services/exam-scoring.ts` expone `gradeExam(questions, answers)`, una función pura sin
+dependencias de Angular:
+
+- Las preguntas anuladas (`annulled: true` / `correctAnswer: null`) no puntúan.
+- Acierto: la opción marcada coincide con `correctAnswer`.
+- Fallo: la opción marcada es válida pero distinta de la correcta.
+- En blanco: sin respuesta o con un índice inexistente/fuera de rango.
+- No hay penalización: `nota = aciertos / preguntas que puntúan × 10`.
+
+`answers` acepta un `Map<number, number>` o un objeto plano `Record<number, number>` indexado por
+`id` de pregunta, que es el contrato previsto con el estado del examen (F4.1).
+
+### Salto a la página del PDF
+
+Cada pregunta de la revisión es clicable y salta a su `pdfReference.page`. El salto se delega en
+`src/app/services/pdf-navigation.service.ts`:
+
+- Con el visor PDF (F3) montado, este se registra una sola vez:
+
+  ```ts
+  private readonly unregister = this.pdfNavigation.registerViewer((page) =>
+    this.viewer.goToPage(page),
+  );
+  // ngOnDestroy(): this.unregister();
+  ```
+
+- Sin visor conectado (o mientras la F3 no está integrada), el componente abre
+  `<pdfUrl>#page=N` en una pestaña nueva. El componente también emite `referenceJumped` con la
+  `PdfReference` para que el contenedor pueda reaccionar sin usar el servicio.
+

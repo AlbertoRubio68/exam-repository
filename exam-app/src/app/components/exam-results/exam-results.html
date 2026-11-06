@@ -1,0 +1,137 @@
+<section class="flex flex-col gap-6" aria-labelledby="exam-results-title">
+  <header class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">
+      Resultat de la correcció
+    </p>
+    <h2 id="exam-results-title" class="mt-1 text-2xl font-semibold text-slate-900">
+      {{ result().correct }} de {{ result().computable }} preguntes correctes
+    </h2>
+    <p class="mt-2 text-slate-600" role="status">
+      Nota: <span class="text-lg font-semibold text-slate-900">{{ scoreLabel() }} / 10</span>
+      <span class="mx-2 text-slate-300">·</span>
+      {{ percentageLabel() }} d'encerts
+    </p>
+
+    <dl class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+        <dt class="text-xs font-medium uppercase tracking-wide text-emerald-700">Correctes</dt>
+        <dd class="mt-1 text-2xl font-semibold text-emerald-900">{{ result().correct }}</dd>
+      </div>
+      <div class="rounded-xl border border-rose-200 bg-rose-50 p-3">
+        <dt class="text-xs font-medium uppercase tracking-wide text-rose-700">Fallades</dt>
+        <dd class="mt-1 text-2xl font-semibold text-rose-900">{{ result().incorrect }}</dd>
+      </div>
+      <div class="rounded-xl border border-amber-200 bg-amber-50 p-3">
+        <dt class="text-xs font-medium uppercase tracking-wide text-amber-700">En blanc</dt>
+        <dd class="mt-1 text-2xl font-semibold text-amber-900">{{ result().blank }}</dd>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-100 p-3">
+        <dt class="text-xs font-medium uppercase tracking-wide text-slate-600">Anul·lades</dt>
+        <dd class="mt-1 text-2xl font-semibold text-slate-800">{{ result().annulled }}</dd>
+      </div>
+    </dl>
+
+    <div class="mt-6 flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+        (click)="retry.emit()"
+      >
+        Torna a intentar
+      </button>
+      <p class="text-sm text-slate-500">
+        Fes clic sobre qualsevol pregunta per obrir la pàgina del temari al visor PDF.
+      </p>
+    </div>
+  </header>
+
+  <div class="flex flex-wrap gap-2" role="tablist" aria-label="Filtra les preguntes per resultat">
+    @for (option of filters(); track option.value) {
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="filter() === option.value"
+        [class]="
+          'rounded-full border px-3 py-1.5 text-sm font-medium transition ' +
+          (filter() === option.value
+            ? 'border-slate-900 bg-slate-900 text-white'
+            : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400')
+        "
+        (click)="filter.set(option.value)"
+      >
+        {{ option.label }}
+        <span class="ml-1 opacity-70">({{ option.count }})</span>
+      </button>
+    }
+  </div>
+
+  <ol class="flex flex-col gap-3" aria-label="Preguntes corregides">
+    @for (item of visibleQuestions(); track item.id) {
+      <li class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <button
+          type="button"
+          class="flex w-full items-start gap-3 p-4 text-left transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-slate-900"
+          (click)="openReference(item)"
+        >
+          <span
+            class="mt-0.5 inline-flex min-w-9 justify-center rounded-md bg-slate-100 px-1.5 py-1 text-xs font-semibold text-slate-700"
+          >
+            {{ item.id }}
+          </span>
+          <span class="flex-1">
+            <span class="block text-sm font-medium text-slate-900 sm:text-base">
+              {{ item.question }}
+            </span>
+            <span class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span
+                class="rounded-full px-2 py-0.5 font-semibold"
+                [class]="outcomeClasses(item.outcome)"
+              >
+                {{ outcomeLabel(item.outcome) }}
+              </span>
+              <span class="text-slate-500">{{ item.pdfReference.label }}</span>
+            </span>
+          </span>
+          <span class="hidden shrink-0 self-center text-xs font-medium text-slate-500 sm:block">
+            Veure pàg. {{ item.pdfReference.page }} →
+          </span>
+        </button>
+
+        <div class="border-t border-slate-100 px-4 py-3 text-sm">
+          <p class="text-slate-700">
+            <span class="font-medium text-slate-900">La teva resposta: </span>
+            @if (selectedText(item); as selected) {
+              <span [class]="item.outcome === 'correct' ? 'text-emerald-700' : 'text-rose-700'">{{
+                selected
+              }}</span>
+            } @else {
+              <span class="text-amber-700">En blanc</span>
+            }
+          </p>
+          @if (correctText(item); as correct) {
+            <p class="mt-1 text-slate-700">
+              <span class="font-medium text-slate-900">Resposta correcta: </span>
+              <span class="text-emerald-700">{{ correct }}</span>
+            </p>
+          }
+          <p class="mt-2 text-slate-600">{{ item.explanation }}</p>
+          <a
+            class="mt-3 inline-block text-xs font-medium text-sky-700 underline underline-offset-2 hover:text-sky-900"
+            [href]="referenceLink(item)"
+            target="_blank"
+            rel="noopener"
+            (click)="openReference(item, $event)"
+          >
+            Obrir la pàgina {{ item.pdfReference.page }} del PDF
+          </a>
+        </div>
+      </li>
+    } @empty {
+      <li
+        class="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500"
+      >
+        No hi ha preguntes en aquest filtre.
+      </li>
+    }
+  </ol>
+</section>

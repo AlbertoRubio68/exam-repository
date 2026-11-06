@@ -1,0 +1,131 @@
+<main class="min-h-dvh bg-slate-50 px-4 py-6 sm:px-6">
+  <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
+    <header class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">
+        Qüestionari de coneixements
+      </p>
+      <h1 class="mt-1 text-xl font-semibold text-slate-900 sm:text-2xl">{{ title }}</h1>
+
+      <div class="mt-5">
+        <div class="flex items-center justify-between text-xs font-medium text-slate-500">
+          <span>{{
+            checked() ? 'Revisió del qüestionari' : 'Pregunta ' + (index() + 1) + ' de ' + total()
+          }}</span>
+          <span>{{ answeredLabel() }}</span>
+        </div>
+        <div
+          class="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200"
+          role="progressbar"
+          [attr.aria-valuenow]="checked() ? total() : index() + 1"
+          [attr.aria-valuemin]="1"
+          [attr.aria-valuemax]="total()"
+          [attr.aria-label]="'Progrés del qüestionari'"
+        >
+          <div
+            class="h-full rounded-full bg-slate-900 transition-all"
+            [style.width.%]="checked() ? 100 : progress()"
+          ></div>
+        </div>
+      </div>
+    </header>
+
+    @if (!checked()) {
+      <section
+        class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+        aria-labelledby="current-question"
+      >
+        <h2
+          id="current-question"
+          class="text-base font-medium leading-relaxed text-slate-900 sm:text-lg"
+        >
+          {{ current().question }}
+        </h2>
+
+        <div
+          class="mt-5 flex flex-col gap-2"
+          role="radiogroup"
+          [attr.aria-label]="'Opcions de la pregunta ' + current().id"
+        >
+          @for (option of current().options; track $index) {
+            <button
+              type="button"
+              role="radio"
+              [attr.aria-checked]="isSelected($index)"
+              [class]="
+                'flex w-full items-start gap-3 rounded-xl border p-3 text-left text-sm transition sm:text-base ' +
+                (isSelected($index)
+                  ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                  : 'border-slate-200 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50')
+              "
+              (click)="select($index)"
+            >
+              <span
+                [class]="
+                  'inline-flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ' +
+                  (isSelected($index)
+                    ? 'border-white/40 bg-white/10 text-white'
+                    : 'border-slate-300 text-slate-600')
+                "
+              >
+                {{ optionLetter($index) }}
+              </span>
+              <span class="pt-0.5">{{ option }}</span>
+            </button>
+          }
+        </div>
+
+        <div class="mt-6 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <button
+            type="button"
+            class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition enabled:hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-40"
+            [disabled]="isFirst()"
+            (click)="previous()"
+          >
+            ← Anterior
+          </button>
+          <p class="text-xs text-slate-500">Referència: {{ current().pdfReference.label }}</p>
+          <button
+            type="button"
+            class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition enabled:hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-40"
+            [disabled]="isLast()"
+            (click)="next()"
+          >
+            Següent →
+          </button>
+        </div>
+      </section>
+
+      <section
+        class="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+      >
+        <button
+          type="button"
+          class="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition enabled:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+          [disabled]="!canCheck()"
+          (click)="check()"
+        >
+          Comprovar resultats
+        </button>
+        <button
+          type="button"
+          class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+          (click)="openReference()"
+        >
+          Veure al temari (pàg. {{ current().pdfReference.page }})
+        </button>
+        @if (!canCheck()) {
+          <p class="text-sm text-slate-500">
+            Respon almenys una pregunta per poder comprovar el resultat.
+          </p>
+        }
+      </section>
+    } @else {
+      <app-exam-results
+        [questions]="questions"
+        [answers]="answers()"
+        [pdfUrl]="pdfUrl"
+        (retry)="retry()"
+      />
+    }
+  </div>
+</main>
