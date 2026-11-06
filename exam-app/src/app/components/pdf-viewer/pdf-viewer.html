@@ -1,0 +1,32 @@
+<div class="flex h-full min-h-0 flex-col bg-slate-100">
+  <header class="shrink-0 border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+    <div class="flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-xs font-semibold uppercase tracking-wide text-sky-700">Temari PDF</p>
+        <p class="truncate text-sm text-slate-600" [title]="fileName()">{{ fileName() }}</p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+          Pàgina {{ currentPage() }}
+        </span>
+        <a
+          [href]="pdfUrl()"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600"
+        >
+          Obrir
+          <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="min-h-0 flex-1 bg-slate-200">
+    <iframe
+      class="h-full w-full border-0 bg-white"
+      [src]="embedUrl()"
+      [title]="'Visor del temari: ' + fileName()"
+    ></iframe>
+  </div>
+</div>

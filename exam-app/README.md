@@ -3,7 +3,9 @@
 SPA en Angular (standalone components) para realizar exámenes tipo test sincronizados con un visor PDF.
 Especificación: [`docs/specs/exam_app_architecture_spec.md`](../docs/specs/exam_app_architecture_spec.md).
 
-Esta fase (Fase 1) contiene únicamente el workspace, el modelo de datos y el JSON con el examen real.
+Esta fase (Fase 2) contiene el workspace, el modelo de datos con el JSON del examen real y la
+maquetación responsive split-screen: panel de preguntas a la izquierda y visor PDF a la derecha
+(50/50 en escritorio, pestañas en móvil).
 
 ## Stack
 
@@ -28,6 +30,10 @@ npx ng test --watch=false
 
 ```
 src/app/
+├── app.ts / app.html        # shell: cabecera + layout split-screen (Tailwind)
+├── components/
+│   ├── question-panel/      # columna izquierda: pregunta, opciones y navegación
+│   └── pdf-viewer/          # columna derecha: visor del temario (iframe en F2)
 ├── models/exam.model.ts     # ExamConfig, ExamQuestion, PdfReference
 ├── data/exam-data.json      # examen real (80 preguntas, Model A)
 └── data/exam-data.spec.ts   # validación del JSON contra el modelo
@@ -35,6 +41,12 @@ public/documents/
 └── questionari-coneixements-model-a.pdf   # cuadernillo servido al visor (31 pág.)
 scripts/                     # utilidades de extracción/regeneración de datos
 ```
+
+### Layout split-screen
+
+- Escritorio (`lg`, ≥ 1024 px): dos columnas iguales con `lg:grid lg:grid-cols-2`.
+- Móvil / tablet: pestañas «Preguntes» / «Temari PDF» que alternan la columna visible
+  (`pane--collapsed`). La maquetación se valida en `src/app/app.spec.ts`.
 
 ## Datos del examen
 
