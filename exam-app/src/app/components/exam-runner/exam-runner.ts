@@ -13,7 +13,9 @@ import examData from '../../data/exam-data.json';
 import { ExamConfig, ExamQuestion } from '../../models/exam.model';
 import { ExamStateService } from '../../services/exam-state.service';
 import {
+  PdfDocument,
   PdfNavigationService,
+  PdfPageTarget,
   buildPdfPageLink,
   resolvePdfUrl,
 } from '../../services/pdf-navigation.service';
@@ -33,8 +35,12 @@ export type SplitPaneView = 'questions' | 'pdf';
  * panel izquierdo usa `QuestionPanel` (F2) y, al comprobar, `ExamResults`
  * (F4.2), que corrige con `gradeExam`. El panel derecho monta el visor real de
  * PDF.js (F3) y se registra en `PdfNavigationService` para que los saltos de
- * página del cuestionario y de la revisión se resuelvan dentro de la propia
- * página, sin abrir pestañas nuevas.
+ * página se resuelvan dentro de la propia página, sin abrir pestañas nuevas.
+ *
+ * Cada pregunta apunta a la **guía de estudio** (`studyReference`), que es donde
+ * se explica su contenido y la respuesta correcta. El visor puede cambiar entre
+ * la guía y el cuadernillo del cuestionario; la página del cuadernillo
+ * (`pdfReference`) solo se usa para consultar el enunciado original.
  */
 @Component({
   selector: 'app-exam-runner',
@@ -54,16 +60,31 @@ export class ExamRunner implements AfterViewInit, OnDestroy {
   readonly exam = examData as unknown as ExamConfig;
 
   /**
-   * URL absoluta del PDF de referencia, resuelta contra el `base href` para que
-   * funcione igual en local y bajo el subdirectorio de GitHub Pages.
+   * URLs absolutas de los PDF, resueltas contra el `base href` para que
+   * funcionen igual en local y bajo el subdirectorio de GitHub Pages.
    */
-  readonly pdfUrl = resolvePdfUrl(this.exam.pdfUrl);
+  readonly studyPdfUrl = resolvePdfUrl(this.exam.studyPdfUrl);
+  readonly questionnairePdfUrl = resolvePdfUrl(this.exam.pdfUrl);
 
   /** `true` cuando se ha pulsado "Comprovar resultats". */
   readonly checked = signal(false);
 
   /** Columna visible en móvil / tablet. */
   readonly view = signal<SplitPaneView>('questions');
+
+  /** Documento que muestra el visor: la guía de estudio por defecto. */
+  readonly activeDocument = signal<PdfDocument>('study');
+
+  /** Página que el visor debe mostrar (1-based). */
+  readonly targetPage = signal(1);
+
+  /** Contador de peticiones de salto, para repetir saltos a la misma página. */
+  readonly pageRequest = signal(0);
+
+  /** URL del documento activo del visor. */
+  readonly activePdfUrl = computed(() =>
+    this.activeDocument() === 'study' ? this.studyPdfUrl : this.questionnairePdfUrl,
+  );
 
   /** Pregunta visible, o `null` si el examen está vacío. */
   readonly current = this.state.currentQuestion;
@@ -93,10 +114,9 @@ export class ExamRunner implements AfterViewInit, OnDestroy {
    * libera en `ngOnDestroy` para no dejar referencias al componente destruido.
    */
   ngAfterViewInit(): void {
-    this.unregisterViewer = this.pdfNavigation.registerViewer((page) => {
-      this.view.set('pdf');
-      void this.pdfViewer?.goToPage(page);
-    });
+    this.unregisterViewer = this.pdfNavigation.registerViewer((target) =>
+      this.applyNavigation(target),
+    );
   }
 
   ngOnDestroy(): void {
@@ -109,6 +129,22 @@ export class ExamRunner implements AfterViewInit, OnDestroy {
   }
 
   protected showPdf(): void {
+    this.view.set('pdf');
+  }
+
+  /** Cambia el documento del visor manteniendo el contexto de la pregunta visible. */
+  protected showDocument(document: PdfDocument): void {
+    if (document === this.activeDocument()) {
+      return;
+    }
+    const question = this.current();
+    const page =
+      document === 'study'
+        ? (question?.studyReference.page ?? 1)
+        : (question?.pdfReference.page ?? 1);
+    this.activeDocument.set(document);
+    this.targetPage.set(page);
+    this.pageRequest.update((request) => request + 1);
     this.view.set('pdf');
   }
 
@@ -149,20 +185,71 @@ export class ExamRunner implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Salta a la página del PDF de la pregunta visible. Con el visor conectado el
-   * salto es interno; sin visor se abre el PDF en una pestaña nueva.
+   * Salta a la página de la guía de estudio de la pregunta visible.
+   *
+   * Con el visor conectado el salto es interno; sin visor se abre la guía en una
+   * pestaña nueva en la página indicada.
    */
-  protected openReference(question: ExamQuestion | null = this.current()): void {
+  protected openStudyReference(question: ExamQuestion | null = this.current()): void {
     if (!question) {
       return;
     }
-    this.pdfNavigation.goToPage(question.pdfReference.page);
+    this.pdfNavigation.goToStudyPage(question.studyReference.page);
     if (!this.pdfNavigation.hasViewer) {
       this.document.defaultView?.open(
-        buildPdfPageLink(this.pdfUrl, question.pdfReference.page),
+        buildPdfPageLink(this.studyPdfUrl, question.studyReference.page),
         '_blank',
         'noopener',
       );
+    }
+  }
+
+  /**
+   * Consulta la página del cuadernillo del cuestionario (referencia histórica).
+   *
+   * No es el botón de la guía: solo permite ver el enunciado original.
+   */
+  protected openQuestionnaireReference(question: ExamQuestion | null = this.current()): void {
+    if (!question) {
+      return;
+    }
+    this.pdfNavigation.goToQuestionnairePage(question.pdfReference.page);
+    if (!this.pdfNavigation.hasViewer) {
+      this.document.defaultView?.open(
+        buildPdfPageLink(this.questionnairePdfUrl, question.pdfReference.page),
+        '_blank',
+        'noopener',
+      );
+    }
+  }
+
+  /** Salta a una página concreta de la guía de estudio (petición del panel de preguntas). */
+  protected openStudyReferencePage(page: number): void {
+    this.pdfNavigation.goToStudyPage(page);
+    if (!this.pdfNavigation.hasViewer) {
+      this.document.defaultView?.open(
+        buildPdfPageLink(this.studyPdfUrl, page),
+        '_blank',
+        'noopener',
+      );
+    }
+  }
+
+  /**
+   * Aplica un destino de navegación: cambia de documento si hace falta y salta de página.
+   *
+   * Si el documento no cambia se llama directamente a `goToPage()` del visor (salto
+   * inmediato, sin esperar a la detección de cambios). Si cambia, basta con actualizar
+   * los inputs: el visor recarga el PDF y aplica `initialPage` al terminar la carga.
+   */
+  private applyNavigation(target: PdfPageTarget): void {
+    const switching = target.document !== this.activeDocument();
+    this.activeDocument.set(target.document);
+    this.targetPage.set(target.page);
+    this.pageRequest.update((request) => request + 1);
+    this.view.set('pdf');
+    if (!switching) {
+      void this.pdfViewer?.goToPage(target.page);
     }
   }
 }

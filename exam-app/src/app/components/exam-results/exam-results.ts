@@ -8,7 +8,7 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { ExamQuestion, PdfReference } from '../../models/exam.model';
+import { ExamQuestion } from '../../models/exam.model';
 import {
   AnswerMap,
   ExamResult,
@@ -16,7 +16,11 @@ import {
   QuestionResult,
   gradeExam,
 } from '../../services/exam-scoring';
-import { PdfNavigationService, buildPdfPageLink } from '../../services/pdf-navigation.service';
+import {
+  PdfNavigationService,
+  PdfPageTarget,
+  buildPdfPageLink,
+} from '../../services/pdf-navigation.service';
 import { optionLetter } from '../../utils/option-letter';
 
 /** Filtros disponibles en la lista de revisión. */
@@ -63,11 +67,14 @@ export class ExamResults {
   /** URL del PDF de referencia (para el enlace directo de reserva). */
   readonly pdfUrl = input.required<string>();
 
+  /** URL de la guía de estudio (para el enlace directo de reserva). */
+  readonly studyPdfUrl = input.required<string>();
+
   /** Emite cuando el usuario quiere repetir el examen. */
   readonly retry = output<void>();
 
-  /** Emite la referencia del PDF cada vez que se pide un salto de página. */
-  readonly referenceJumped = output<PdfReference>();
+  /** Emite el destino (documento + página) cada vez que se pide un salto. */
+  readonly referenceJumped = output<PdfPageTarget>();
 
   private readonly pdfNavigation = inject(PdfNavigationService);
   private readonly document = inject(DOCUMENT);
@@ -150,24 +157,43 @@ export class ExamResults {
     return `${optionLetter(item.correctAnswer)}) ${item.options[item.correctAnswer]}`;
   }
 
-  /** Enlace directo al PDF en la página de la pregunta. */
-  referenceLink(item: QuestionResult): string {
+  /** Enlace directo a la página de la guía de estudio de la pregunta. */
+  studyLink(item: QuestionResult): string {
+    return buildPdfPageLink(this.studyPdfUrl(), item.studyReference.page);
+  }
+
+  /** Enlace directo al cuadernillo del cuestionario (dato histórico). */
+  questionnaireLink(item: QuestionResult): string {
     return buildPdfPageLink(this.pdfUrl(), item.pdfReference.page);
   }
 
   /**
-   * Salta a la página del PDF de la pregunta.
+   * Salta a la página de la guía de estudio donde se explica la pregunta.
    *
-   * Con el visor conectado el salto es interno; sin visor se abre el PDF en una
-   * pestaña nueva. En ambos casos se cancela la navegación del enlace cuando
-   * procede para no duplicar la acción.
+   * Con el visor conectado el salto es interno; sin visor se abre la guía en una
+   * pestaña nueva. En ambos casos se cancela la navegación del enlace cuando procede
+   * para no duplicar la acción.
    */
-  openReference(item: QuestionResult, event?: Event): void {
+  openStudyReference(item: QuestionResult, event?: Event): void {
     event?.preventDefault();
-    this.referenceJumped.emit(item.pdfReference);
-    this.pdfNavigation.goToPage(item.pdfReference.page);
+    this.referenceJumped.emit({ document: 'study', page: item.studyReference.page });
+    this.pdfNavigation.goToStudyPage(item.studyReference.page);
     if (!this.pdfNavigation.hasViewer) {
-      this.document.defaultView?.open(this.referenceLink(item), '_blank', 'noopener');
+      this.document.defaultView?.open(this.studyLink(item), '_blank', 'noopener');
+    }
+  }
+
+  /**
+   * Salta a la página del cuadernillo del cuestionario (referencia histórica).
+   *
+   * No se usa para el botón de la guía: solo permite consultar el enunciado original.
+   */
+  openQuestionnaireReference(item: QuestionResult, event?: Event): void {
+    event?.preventDefault();
+    this.referenceJumped.emit({ document: 'questionnaire', page: item.pdfReference.page });
+    this.pdfNavigation.goToQuestionnairePage(item.pdfReference.page);
+    if (!this.pdfNavigation.hasViewer) {
+      this.document.defaultView?.open(this.questionnaireLink(item), '_blank', 'noopener');
     }
   }
 }

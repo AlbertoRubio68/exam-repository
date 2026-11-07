@@ -8,7 +8,8 @@ import { ExamRunner } from './exam-runner';
 
 /**
  * Sustituto del visor real (F3) para no cargar PDF.js en jsdom. Mantiene la
- * misma API pública que consume la integración: `goToPage(page)`.
+ * misma API pública que consume la integración: `pdfUrl`, `initialPage`,
+ * `pageRequest` y `goToPage(page)`.
  */
 @Component({
   selector: 'app-pdf-viewer',
@@ -17,6 +18,8 @@ import { ExamRunner } from './exam-runner';
 })
 class PdfViewerStub {
   @Input({ required: true }) pdfUrl!: string;
+  @Input() initialPage = 1;
+  @Input() pageRequest = 0;
 
   readonly goToPage = vi.fn(() => Promise.resolve());
 }
@@ -59,7 +62,9 @@ describe('ExamRunner (integración F2 + F3 + F4)', () => {
   it('carga el examen real en el estado y muestra el split-screen', () => {
     expect(state.totalQuestions()).toBe(80);
     expect(state.currentIndex()).toBe(0);
-    expect(element().querySelector('[data-testid="pane-questions"] app-question-panel')).not.toBeNull();
+    expect(
+      element().querySelector('[data-testid="pane-questions"] app-question-panel'),
+    ).not.toBeNull();
     expect(element().querySelector('[data-testid="pane-pdf"] app-pdf-viewer')).not.toBeNull();
     expect(element().querySelector('main')?.className).toContain('lg:grid-cols-2');
     expect(element().textContent).toContain('80 preguntes');
@@ -125,13 +130,74 @@ describe('ExamRunner (integración F2 + F3 + F4)', () => {
     expect(findButton('Comprovar resultats')?.disabled).toBe(true);
   });
 
-  it('registra el visor real y salta a la página del PDF de la pregunta', async () => {
-    expect(pdfNavigation.hasViewer).toBe(true);
+  it('arranca con la guía de estudio como documento del visor', () => {
+    expect(fixture.componentInstance.activeDocument()).toBe('study');
+    expect(viewer.pdfUrl).toContain('documents/guia-estudi-agentrural.pdf');
+  });
 
-    findButton('Veure al temari')?.click();
+  it('salta a la página de la guía de estudio de la pregunta visible', async () => {
+    expect(pdfNavigation.hasViewer).toBe(true);
+    // Pregunta 1: la guía la explica en la página física 210.
+    expect(fixture.componentInstance.current()?.studyReference.page).toBe(210);
+
+    element().querySelector<HTMLButtonElement>('[data-testid="open-study-reference"]')?.click();
     await render();
 
-    expect(viewer.goToPage).toHaveBeenCalledWith(3);
+    expect(viewer.goToPage).toHaveBeenCalledWith(210);
+  });
+
+  it('el botón de la guía usa la referencia de la guía, no la del cuadernillo', async () => {
+    // Pregunta 1: cuadernillo pág. 3 vs guía pág. 210.
+    element().querySelector<HTMLButtonElement>('[data-testid="open-study-reference"]')?.click();
+    await render();
+
+    expect(viewer.goToPage).toHaveBeenCalledWith(210);
+    expect(viewer.goToPage).not.toHaveBeenCalledWith(3);
+  });
+
+  it('el panel de preguntas también puede saltar a la guía', async () => {
+    element().querySelector<HTMLButtonElement>('[data-testid="question-study-reference"]')?.click();
+    await render();
+
+    expect(viewer.goToPage).toHaveBeenCalledWith(210);
+  });
+
+  it('permite consultar el cuadernillo del cuestionario (dato histórico)', async () => {
+    element()
+      .querySelector<HTMLButtonElement>('[data-testid="open-questionnaire-reference"]')
+      ?.click();
+    await render();
+
+    expect(fixture.componentInstance.activeDocument()).toBe('questionnaire');
+    expect(viewer.pdfUrl).toContain('documents/questionari-coneixements-model-a.pdf');
+    expect(viewer.initialPage).toBe(3);
+  });
+
+  it('el selector de documento vuelve a la guía en la página de la pregunta', async () => {
+    element().querySelector<HTMLButtonElement>('[data-testid="doc-questionnaire"]')?.click();
+    await render();
+    expect(fixture.componentInstance.activeDocument()).toBe('questionnaire');
+
+    element().querySelector<HTMLButtonElement>('[data-testid="doc-study"]')?.click();
+    await render();
+
+    expect(fixture.componentInstance.activeDocument()).toBe('study');
+    expect(viewer.pdfUrl).toContain('documents/guia-estudi-agentrural.pdf');
+    expect(viewer.initialPage).toBe(210);
+  });
+
+  it('desde la revisión salta a la guía al pulsar una pregunta', async () => {
+    radios().item(3).click();
+    await render();
+    findButton('Comprovar resultats')?.click();
+    await render();
+
+    viewer.goToPage.mockClear();
+    element().querySelector<HTMLButtonElement>('app-exam-results ol > li > button')?.click();
+    await render();
+
+    // Pregunta 1 de la revisión: guía pág. 210.
+    expect(viewer.goToPage).toHaveBeenCalledWith(210);
   });
 
   it('expone el temporizador y permite pausarlo y reanudarlo', async () => {

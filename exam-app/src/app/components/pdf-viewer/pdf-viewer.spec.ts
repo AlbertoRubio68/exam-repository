@@ -153,6 +153,34 @@ describe('PdfViewer', () => {
     expect(pdfjs.getPage).toHaveBeenLastCalledWith(7);
   });
 
+  it('un nuevo pageRequest vuelve a saltar a initialPage', async () => {
+    const fixture = await createViewer();
+    const viewer = fixture.componentInstance;
+    const goToPage = vi.spyOn(viewer, 'goToPage');
+
+    fixture.componentRef.setInput('pageRequest', 1);
+    fixture.componentRef.setInput('initialPage', 9);
+    fixture.detectChanges();
+
+    expect(goToPage).toHaveBeenCalledWith(9);
+  });
+
+  it('al cambiar de documento carga el nuevo PDF y aplica initialPage', async () => {
+    const fixture = await createViewer();
+
+    fixture.componentRef.setInput('pdfUrl', '/documents/guia-estudi-agentrural.pdf');
+    fixture.componentRef.setInput('initialPage', 12);
+    fixture.componentRef.setInput('pageRequest', 1);
+    fixture.detectChanges();
+    await flush(fixture);
+
+    expect(pdfjs.getDocument).toHaveBeenLastCalledWith(
+      expect.objectContaining({ url: '/documents/guia-estudi-agentrural.pdf' }),
+    );
+    expect(fixture.componentInstance.currentPage()).toBe(12);
+    expect(pdfjs.getPage).toHaveBeenLastCalledWith(12);
+  });
+
   it('emite pageChange con cada página renderizada', async () => {
     const fixture = await createViewer();
     const emitted: number[] = [];

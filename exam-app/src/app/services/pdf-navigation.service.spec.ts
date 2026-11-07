@@ -9,25 +9,37 @@ describe('PdfNavigationService', () => {
     service = TestBed.inject(PdfNavigationService);
   });
 
-  it('emite las páginas solicitadas a los suscriptores', () => {
-    const pages: number[] = [];
-    service.pageRequests.subscribe((page) => pages.push(page));
+  it('emite los saltos solicitados con documento y página', () => {
+    const targets: { document: string; page: number }[] = [];
+    service.pageRequests.subscribe((target) => targets.push(target));
 
-    service.goToPage(4);
-    service.goToPage(12);
+    service.goToStudyPage(4);
+    service.goToQuestionnairePage(12);
 
-    expect(pages).toEqual([4, 12]);
+    expect(targets).toEqual([
+      { document: 'study', page: 4 },
+      { document: 'questionnaire', page: 12 },
+    ]);
+  });
+
+  it('por defecto salta a la guía de estudio', () => {
+    const targets: { document: string; page: number }[] = [];
+    service.pageRequests.subscribe((target) => targets.push(target));
+
+    service.goToPage(210);
+
+    expect(targets).toEqual([{ document: 'study', page: 210 }]);
   });
 
   it('ignora páginas no válidas', () => {
-    const pages: number[] = [];
-    service.pageRequests.subscribe((page) => pages.push(page));
+    const targets: unknown[] = [];
+    service.pageRequests.subscribe((target) => targets.push(target));
 
     service.goToPage(0);
     service.goToPage(-3);
     service.goToPage(Number.NaN);
 
-    expect(pages).toEqual([]);
+    expect(targets).toEqual([]);
   });
 
   it('delega el salto en el visor PDF registrado', () => {
@@ -35,9 +47,9 @@ describe('PdfNavigationService', () => {
     const unregister = service.registerViewer(viewer);
 
     expect(service.hasViewer).toBe(true);
-    service.goToPage(7);
+    service.goToStudyPage(7);
 
-    expect(viewer).toHaveBeenCalledWith(7);
+    expect(viewer).toHaveBeenCalledWith({ document: 'study', page: 7 });
     unregister();
     expect(service.hasViewer).toBe(false);
   });
