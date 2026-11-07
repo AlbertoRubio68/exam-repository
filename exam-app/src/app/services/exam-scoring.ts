@@ -1,4 +1,4 @@
-import { ExamQuestion, PdfReference } from '../models/exam.model';
+import { ExamQuestion, PdfReference, StudyReference } from '../models/exam.model';
 
 /**
  * Respuesta elegida por el usuario para una pregunta.
@@ -34,8 +34,10 @@ export interface QuestionResult {
   correctAnswer: number | null;
   /** Resultado de la corrección. */
   outcome: QuestionOutcome;
-  /** Referencia al PDF de referencia. */
+  /** Referencia al PDF de referencia (cuadernillo, dato histórico). */
   pdfReference: PdfReference;
+  /** Referencia a la guía de estudio donde se explica la pregunta. */
+  studyReference: StudyReference;
   /** Justificación de la respuesta correcta. */
   explanation: string;
 }
@@ -131,6 +133,7 @@ export function gradeExam(questions: readonly ExamQuestion[], answers: AnswerMap
       correctAnswer: isAnnulled(question) ? null : question.correctAnswer,
       outcome,
       pdfReference: question.pdfReference,
+      studyReference: question.studyReference,
       explanation: question.explanation,
     };
   });

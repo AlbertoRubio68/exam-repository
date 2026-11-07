@@ -34,7 +34,9 @@ describe('exam-data.json', () => {
   });
 
   it('marca como anuladas exactamente las preguntas anuladas por la plantilla oficial', () => {
-    const annulled = exam.questions.filter((question) => question.annulled).map((question) => question.id);
+    const annulled = exam.questions
+      .filter((question) => question.annulled)
+      .map((question) => question.id);
     expect(annulled).toEqual([19, 26, 39, 46, 56]);
   });
 
@@ -44,8 +46,12 @@ describe('exam-data.json', () => {
         expect(question.correctAnswer, `pregunta ${question.id}`).toBeNull();
       } else {
         expect(Number.isInteger(question.correctAnswer), `pregunta ${question.id}`).toBe(true);
-        expect(question.correctAnswer as number, `pregunta ${question.id}`).toBeGreaterThanOrEqual(0);
-        expect(question.correctAnswer as number, `pregunta ${question.id}`).toBeLessThan(question.options.length);
+        expect(question.correctAnswer as number, `pregunta ${question.id}`).toBeGreaterThanOrEqual(
+          0,
+        );
+        expect(question.correctAnswer as number, `pregunta ${question.id}`).toBeLessThan(
+          question.options.length,
+        );
       }
     }
   });
@@ -57,5 +63,41 @@ describe('exam-data.json', () => {
       expect(question.pdfReference.label.length, `pregunta ${question.id}`).toBeGreaterThan(0);
       expect(question.explanation.trim().length, `pregunta ${question.id}`).toBeGreaterThan(0);
     }
+  });
+
+  it('sirve la guía de estudio como asset relativo al base-href', () => {
+    expect(exam.studyPdfUrl).toBe('documents/guia-estudi-agentrural.pdf');
+    expect(exam.studyPdfUrl.startsWith('/')).toBe(false);
+    // La guía no puede confundirse con el cuadernillo del cuestionario.
+    expect(exam.studyPdfUrl).not.toBe(exam.pdfUrl);
+  });
+
+  it('las 80 preguntas tienen referencia a la guía de estudio', () => {
+    expect(exam.questions.length).toBe(80);
+
+    for (const question of exam.questions) {
+      const reference = question.studyReference;
+      expect(reference, `pregunta ${question.id}`).toBeDefined();
+      expect(reference.page, `pregunta ${question.id}`).toBeGreaterThanOrEqual(1);
+      expect(reference.page, `pregunta ${question.id}`).toBeLessThanOrEqual(608);
+      expect(Number.isInteger(reference.page), `pregunta ${question.id}`).toBe(true);
+      expect(reference.label.trim().length, `pregunta ${question.id}`).toBeGreaterThan(0);
+      expect(reference.anchor?.trim().length ?? 0, `pregunta ${question.id}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('la referencia de la guía no reutiliza la página del cuadernillo', () => {
+    // Mapeo verificado sobre el PDF real: no es una copia de `pdfReference`.
+    const samePage = exam.questions.filter(
+      (question) => question.studyReference.page === question.pdfReference.page,
+    );
+    expect(samePage).toEqual([]);
+  });
+
+  it('marca como needsReview solo las referencias aproximadas conocidas', () => {
+    const needsReview = exam.questions
+      .filter((question) => question.studyReference.needsReview === true)
+      .map((question) => question.id);
+    expect(needsReview).toEqual([10, 16, 24, 57, 76]);
   });
 });

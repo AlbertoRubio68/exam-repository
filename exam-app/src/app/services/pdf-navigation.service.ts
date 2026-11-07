@@ -2,20 +2,37 @@ import { Injectable } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 
 /**
+ * Documentos que puede mostrar el visor PDF (F3).
+ *
+ * - `study`: guía de estudio (`GUIA_ESTUDI_AGENTRURAL.pdf`), donde se explica el contenido
+ *   de cada pregunta y su respuesta correcta. Es el destino de «Veure a la guia».
+ * - `questionnaire`: cuadernillo del cuestionario (Modelo A). Se conserva como documento
+ *   histórico; las preguntas ya no se referencian a sus páginas.
+ */
+export type PdfDocument = 'study' | 'questionnaire';
+
+/** Petición de salto: documento de destino y página (1-based). */
+export interface PdfPageTarget {
+  /** Documento que debe mostrar el visor. */
+  document: PdfDocument;
+  /** Página destino (1-based) del documento. */
+  page: number;
+}
+
+/**
  * Enlace entre el cuestionario/revisión y el visor de PDF (F3).
  *
- * El visor se registra con `registerViewer()` y recibe cada salto de página.
- * Si todavía no hay visor conectado (p. ej. mientras la F3 no está integrada),
- * los consumidores pueden usar `buildPdfPageLink()` para abrir el PDF en una
- * pestaña nueva directamente en la página solicitada.
+ * El visor se registra con `registerViewer()` y recibe cada salto de página indicando
+ * el documento y la página. Si todavía no hay visor conectado, los consumidores pueden
+ * usar `buildPdfPageLink()` para abrir el PDF correspondiente en una pestaña nueva.
  */
 @Injectable({ providedIn: 'root' })
 export class PdfNavigationService {
-  private readonly requests = new Subject<number>();
-  private viewer: ((page: number) => void) | null = null;
+  private readonly requests = new Subject<PdfPageTarget>();
+  private viewer: ((target: PdfPageTarget) => void) | null = null;
 
-  /** Emite cada página solicitada (1-based). */
-  get pageRequests(): Observable<number> {
+  /** Emite cada salto solicitado (documento + página 1-based). */
+  get pageRequests(): Observable<PdfPageTarget> {
     return this.requests.asObservable();
   }
 
@@ -28,7 +45,7 @@ export class PdfNavigationService {
    * Conecta el visor PDF (F3). Devuelve una función para desconectarlo; el
    * visor debe llamarla en `ngOnDestroy`.
    */
-  registerViewer(handler: (page: number) => void): () => void {
+  registerViewer(handler: (target: PdfPageTarget) => void): () => void {
     this.viewer = handler;
     return () => {
       if (this.viewer === handler) {
@@ -38,17 +55,28 @@ export class PdfNavigationService {
   }
 
   /**
-   * Solicita el salto a una página concreta (1-based).
+   * Solicita el salto a una página concreta (1-based) de un documento.
    *
-   * Ignora valores no finitos o menores que 1 para no romper el visor.
+   * Ignora valores no finitos o menores que 1 para no romper el visor. Por defecto
+   * salta a la guía de estudio, que es el documento de consulta de las preguntas.
    */
-  goToPage(page: number): void {
+  goToPage(page: number, document: PdfDocument = 'study'): void {
     if (!Number.isFinite(page) || page < 1) {
       return;
     }
-    const target = Math.trunc(page);
+    const target: PdfPageTarget = { document, page: Math.trunc(page) };
     this.requests.next(target);
     this.viewer?.(target);
+  }
+
+  /** Salto a una página de la guía de estudio. */
+  goToStudyPage(page: number): void {
+    this.goToPage(page, 'study');
+  }
+
+  /** Salto a una página del cuadernillo del cuestionario (dato histórico). */
+  goToQuestionnairePage(page: number): void {
+    this.goToPage(page, 'questionnaire');
   }
 }
 

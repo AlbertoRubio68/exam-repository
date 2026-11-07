@@ -77,6 +77,12 @@ export class PdfViewer implements AfterViewInit, OnChanges, OnDestroy {
   @Input({ required: true }) pdfUrl!: string;
   /** Página que se muestra al cargar el documento (1-based). */
   @Input() initialPage = 1;
+  /**
+   * Contador que fuerza un nuevo salto a `initialPage` aunque el número de página no
+   * cambie (p. ej. si el usuario ha navegado manualmente y vuelve a pulsar la misma
+   * referencia). Cada incremento equivale a una nueva petición de salto.
+   */
+  @Input() pageRequest = 0;
 
   /** Emite la página (1-based) cada vez que el visor muestra una nueva. */
   readonly pageChange = output<number>();
@@ -120,10 +126,15 @@ export class PdfViewer implements AfterViewInit, OnChanges, OnDestroy {
       return;
     }
     if (changes['pdfUrl'] && !changes['pdfUrl'].firstChange) {
+      // Un cambio de documento vuelve a cargar el PDF y, al terminar, aplica
+      // `initialPage` (load() lee el valor vigente del input).
       void this.load();
       return;
     }
-    if (changes['initialPage'] && !changes['initialPage'].firstChange) {
+    const pageRequested =
+      (changes['initialPage'] !== undefined && !changes['initialPage'].firstChange) ||
+      (changes['pageRequest'] !== undefined && !changes['pageRequest'].firstChange);
+    if (pageRequested) {
       void this.goToPage(this.initialPage);
     }
   }

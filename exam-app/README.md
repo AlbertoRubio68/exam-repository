@@ -40,12 +40,14 @@ src/app/
 │   ├── exam-state.service.ts       # respuestas, navegación y temporizador (F4.1)
 │   ├── exam-scoring.ts             # gradeExam(): corrección pura (F4.2)
 │   └── pdf-navigation.service.ts   # bus de salto de página al visor (F4.2/F3)
-├── models/exam.model.ts     # ExamConfig, ExamQuestion, PdfReference
-├── data/exam-data.json      # examen real (80 preguntas, Model A)
+├── models/exam.model.ts     # ExamConfig, ExamQuestion, PdfReference, StudyReference
+├── data/exam-data.json      # examen real (80 preguntas, Model A) + referencias a la guía
 └── data/exam-data.spec.ts   # validación del JSON contra el modelo
 public/documents/
-└── questionari-coneixements-model-a.pdf   # cuadernillo servido al visor (31 pág.)
+├── questionari-coneixements-model-a.pdf   # cuadernillo del cuestionario (31 pág., dato histórico)
+└── guia-estudi-agentrural.pdf             # guía de estudio (608 pág., destino de las preguntas)
 scripts/                     # utilidades de extracción/regeneración de datos
+└── study-references.json    # cartografía verificada pregunta → página de la guía
 ```
 
 ### Layout split-screen
@@ -64,8 +66,9 @@ con `pdfjs-dist` sobre un `<canvas>`:
 
 ```html
 <app-pdf-viewer
-  [pdfUrl]="'documents/questionari-coneixements-model-a.pdf'"
-  [initialPage]="1"
+  [pdfUrl]="'documents/guia-estudi-agentrural.pdf'"
+  [initialPage]="210"
+  [pageRequest]="requestId"
   (pageChange)="onPageChange($event)"
 />
 ```
@@ -73,6 +76,10 @@ con `pdfjs-dist` sobre un `<canvas>`:
 - `goToPage(page: number)` es el método público de salto: ajusta el número al
   rango válido (`1..numPages`) y, si el documento aún se está cargando, aplica el
   salto en cuanto termina la carga.
+- `initialPage` fija la página al cargar el documento; `pageRequest` es un contador que
+  fuerza un nuevo salto a `initialPage` aunque el número no cambie (por ejemplo, al pulsar
+  dos veces la referencia de la misma pregunta). Al cambiar `pdfUrl`, el visor recarga el
+  documento y aplica `initialPage` vigente.
 - `pageChange` emite la página (1-based) cada vez que el visor muestra una nueva.
 - `goToPage` está pensado para conectarse desde otros componentes (referencias
   del cuestionario o revisión) mediante `@ViewChild`, o registrando el visor en
@@ -93,15 +100,39 @@ documento para funcionar también bajo un subdirectorio (GitHub Pages). El módu
 
 - `Annex-1.-Queestionari-de-coneixements-model-A.pdf` → enunciados y opciones (80 preguntas, págs. 3-27).
 - `Annex-1.Plantilles-correccio_modificades.pdf` → columna **Model A** de la plantilla de corrección.
+- `GUIA_ESTUDI_AGENTRURAL.pdf` → guía de estudio (608 páginas) con la explicación de cada pregunta.
 
 Detalles relevantes:
 
 - Las opciones se guardan sin la letra (`options[0]` = opción A) y `correctAnswer` es el índice 0-based.
 - 5 preguntas están anuladas (`19, 26, 39, 46, 56`): `correctAnswer` es `null` y `annulled` es `true`.
 - La pregunta 21 tiene un cambio de respuesta oficial: la correcta es la B, no la D.
-- `pdfReference.page` es la página del PDF donde aparece cada pregunta.
+- `pdfReference.page` es la página del cuadernillo donde aparece cada pregunta (**dato histórico**).
+- `studyReference` es la página de la **guía de estudio** donde se explica la pregunta y su respuesta
+  correcta: `{ page, label, anchor, needsReview? }`. Es la que usan los botones «Veure a la guia».
 - Las preguntas 81-88 de la plantilla son de reserva y el test aptitudinal (numeración 1-8 al final
   del cuadernillo) queda fuera de este JSON: la plantilla de corrección no los incluye.
+
+### Referencias a la guía de estudio
+
+`scripts/study-references.json` es la fuente de la cartografía: 80 entradas con la página física
+(1-based) del PDF de la guía, el tema/apartado, un fragmento literal (`anchor`) verificado sobre el
+texto extraído del PDF y el método de asignación. `apply-study-references.mjs` la vuelca en
+`exam-data.json`, valida las páginas (1..608) y regenera el informe de trazabilidad
+[`docs/estudi-referencies-guia.md`](../docs/estudi-referencies-guia.md):
+
+```bash
+node scripts/apply-study-references.mjs
+```
+
+- `studyReference.needsReview: true` marca las referencias **aproximadas** (p. ej. catálogos que
+  ocupan varias páginas): la UI las señala con la insignia «Referència aproximada».
+- El PDF se sirve desde `public/documents/` con la ruta relativa
+  `documents/guia-estudi-agentrural.pdf`, igual que el cuadernillo, para que el `base href` de
+  GitHub Pages (`/exam-repository/`) se aplique también al visor y a los enlaces `#page=N`.
+- El visor arranca mostrando la guía y permite alternar con el cuadernillo desde el selector
+  «Guia d'estudi / Qüestionari»; el botón «Qüestionari» de la cabecera (y el enlace secundario de
+  la revisión) salta a la página histórica del cuadernillo.
 
 ### Regenerar el JSON
 
@@ -114,7 +145,12 @@ node scripts/build-exam-data.mjs /tmp/questions.json /tmp/corrections.json src/a
 ```
 
 `build-exam-data.mjs` falla si el número de preguntas, las opciones o las respuestas de la plantilla no cuadran,
-de modo que el JSON no se puede generar a medias.
+de modo que el JSON no se puede generar a medias. Como `build-exam-data.mjs` no conoce la guía, después de
+regenerar el JSON hay que volver a aplicar la cartografía:
+
+```bash
+node scripts/apply-study-references.mjs
+```
 
 ## CI/CD (GitHub Actions)
 
@@ -175,19 +211,26 @@ dependencias de Angular:
 
 ### Salto a la página del PDF
 
-Cada pregunta de la revisión es clicable y salta a su `pdfReference.page`. El salto se delega en
-`src/app/services/pdf-navigation.service.ts`:
+Cada pregunta (panel de preguntas, revisión) es clicable y salta a su **guía de estudio**
+(`studyReference.page`). El salto se delega en `src/app/services/pdf-navigation.service.ts`, que
+emite un destino compuesto `{ document: 'study' | 'questionnaire', page }`:
 
 - Con el visor PDF (F3) montado, este se registra una sola vez:
 
   ```ts
-  private readonly unregister = this.pdfNavigation.registerViewer((page) =>
-    this.viewer.goToPage(page),
+  private readonly unregister = this.pdfNavigation.registerViewer((target) =>
+    this.applyNavigation(target),
   );
   // ngOnDestroy(): this.unregister();
   ```
 
-- Sin visor conectado (o mientras la F3 no está integrada), el componente abre
-  `<pdfUrl>#page=N` en una pestaña nueva. El componente también emite `referenceJumped` con la
-  `PdfReference` para que el contenedor pueda reaccionar sin usar el servicio.
+  `applyNavigation` cambia el documento del visor (`activePdfUrl`) y la página destino; si el
+  documento ya era el activo, llama directamente a `viewer.goToPage(page)`.
+
+- `goToStudyPage(page)` es el salto a la guía; `goToQuestionnairePage(page)` conserva el acceso
+  histórico al cuadernillo (botón «Qüestionari»), sin usarse para el botón de la guía.
+
+- Sin visor conectado, el componente abre `<pdfUrl>#page=N` en una pestaña nueva (guía o
+  cuadernillo según el destino). El componente también emite `referenceJumped` con el destino
+  para que el contenedor pueda reaccionar sin usar el servicio.
 

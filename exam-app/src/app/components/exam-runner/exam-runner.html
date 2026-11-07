@@ -11,9 +11,7 @@
         <h1 class="truncate text-base font-semibold text-slate-900 sm:text-lg" [title]="exam.title">
           {{ exam.title }}
         </h1>
-        <p class="truncate text-xs text-slate-500">
-          {{ exam.examId }} · {{ total() }} preguntes
-        </p>
+        <p class="truncate text-xs text-slate-500">{{ exam.examId }} · {{ total() }} preguntes</p>
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
@@ -29,7 +27,9 @@
           <span
             data-testid="timer"
             class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold tabular-nums"
-            [class]="state.isExpired() ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'"
+            [class]="
+              state.isExpired() ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'
+            "
             [attr.aria-label]="'Temps restant: ' + state.formattedRemaining()"
           >
             ⏱ {{ state.formattedRemaining() }}
@@ -53,18 +53,32 @@
             Comprovar resultats
           </button>
         } @else {
-          <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+          <span
+            class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800"
+          >
             Revisió del qüestionari
           </span>
         }
 
         <button
           type="button"
-          data-testid="open-reference"
-          class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-400"
-          (click)="openReference()"
+          data-testid="open-study-reference"
+          class="rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 transition hover:border-sky-400 hover:bg-sky-100"
+          (click)="openStudyReference()"
         >
-          Veure al temari
+          📖 Veure a la guia
+          @if (current(); as question) {
+            (pàg. {{ question.studyReference.page }})
+          }
+        </button>
+
+        <button
+          type="button"
+          data-testid="open-questionnaire-reference"
+          class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-400"
+          (click)="openQuestionnaireReference()"
+        >
+          Qüestionari
           @if (current(); as question) {
             (pàg. {{ question.pdfReference.page }})
           }
@@ -133,13 +147,15 @@
           [locked]="state.answersLocked()"
           (indexChange)="goToIndex($event)"
           (answerSelected)="selectAnswer($event)"
+          (studyReferenceRequested)="openStudyReferencePage($event.page)"
         />
       } @else {
         <div class="h-full min-h-0 overflow-y-auto">
           <app-exam-results
             [questions]="state.questions()"
             [answers]="state.answers()"
-            [pdfUrl]="pdfUrl"
+            [pdfUrl]="questionnairePdfUrl"
+            [studyPdfUrl]="studyPdfUrl"
             (retry)="retry()"
           />
         </div>
@@ -148,11 +164,55 @@
 
     <section
       data-testid="pane-pdf"
-      class="h-full min-h-0"
+      class="flex h-full min-h-0 flex-col"
       [class.pane--collapsed]="view() !== 'pdf'"
-      aria-label="Temari PDF"
+      aria-label="Guia d’estudi PDF"
     >
-      <app-pdf-viewer #pdfViewer [pdfUrl]="pdfUrl" />
+      <div
+        class="flex shrink-0 items-center gap-1 border-b border-slate-200 bg-white px-3 py-2"
+        role="tablist"
+        aria-label="Document del visor"
+      >
+        <button
+          type="button"
+          role="tab"
+          data-testid="doc-study"
+          [attr.aria-selected]="activeDocument() === 'study'"
+          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+          [class]="
+            activeDocument() === 'study'
+              ? 'bg-sky-700 text-white'
+              : 'border border-slate-200 bg-white text-slate-600 hover:border-sky-300 hover:text-sky-700'
+          "
+          (click)="showDocument('study')"
+        >
+          Guia d’estudi
+        </button>
+        <button
+          type="button"
+          role="tab"
+          data-testid="doc-questionnaire"
+          [attr.aria-selected]="activeDocument() === 'questionnaire'"
+          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+          [class]="
+            activeDocument() === 'questionnaire'
+              ? 'bg-sky-700 text-white'
+              : 'border border-slate-200 bg-white text-slate-600 hover:border-sky-300 hover:text-sky-700'
+          "
+          (click)="showDocument('questionnaire')"
+        >
+          Qüestionari
+        </button>
+      </div>
+
+      <div class="min-h-0 flex-1">
+        <app-pdf-viewer
+          #pdfViewer
+          [pdfUrl]="activePdfUrl()"
+          [initialPage]="targetPage()"
+          [pageRequest]="pageRequest()"
+        />
+      </div>
     </section>
   </main>
 </div>

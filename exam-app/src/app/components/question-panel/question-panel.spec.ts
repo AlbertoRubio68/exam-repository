@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ExamQuestion } from '../../models/exam.model';
+import { ExamQuestion, StudyReference } from '../../models/exam.model';
 import { AnswerSelection, QuestionPanel } from './question-panel';
 
 const questions: ExamQuestion[] = [
@@ -9,6 +9,11 @@ const questions: ExamQuestion[] = [
     options: ['Opción A', 'Opción B', 'Opción C', 'Opción D'],
     correctAnswer: 0,
     pdfReference: { page: 3, label: 'página 3' },
+    studyReference: {
+      page: 210,
+      label: 'Temari específic · Tema 5 · 5.1 Pesca',
+      anchor: 'translocació',
+    },
     explanation: 'explicación 1',
   },
   {
@@ -17,6 +22,11 @@ const questions: ExamQuestion[] = [
     options: ['Opción A', 'Opción B', 'Opción C', 'Opción D'],
     correctAnswer: 1,
     pdfReference: { page: 4, label: 'página 4' },
+    studyReference: {
+      page: 211,
+      label: 'Temari específic · Tema 5 · 5.2 Pesca',
+      anchor: 'zones de pesca',
+    },
     explanation: 'explicación 2',
   },
   {
@@ -25,6 +35,11 @@ const questions: ExamQuestion[] = [
     options: ['Opción A', 'Opción B', 'Opción C', 'Opción D'],
     correctAnswer: null,
     pdfReference: { page: 8, label: 'página 8' },
+    studyReference: {
+      page: 300,
+      label: 'Temari específic · Tema 8 · 8.1 Exòtiques',
+      anchor: 'catàleg',
+    },
     explanation: 'anulada',
     annulled: true,
   },
@@ -84,7 +99,8 @@ describe('QuestionPanel', () => {
     const first = createPanel(0);
     const firstElement = first.nativeElement as HTMLElement;
     expect(
-      (firstElement.querySelector('[data-testid="previous-question"]') as HTMLButtonElement).disabled,
+      (firstElement.querySelector('[data-testid="previous-question"]') as HTMLButtonElement)
+        .disabled,
     ).toBe(true);
     expect(
       (firstElement.querySelector('[data-testid="next-question"]') as HTMLButtonElement).disabled,
@@ -93,7 +109,8 @@ describe('QuestionPanel', () => {
     const last = createPanel(questions.length - 1);
     const lastElement = last.nativeElement as HTMLElement;
     expect(
-      (lastElement.querySelector('[data-testid="previous-question"]') as HTMLButtonElement).disabled,
+      (lastElement.querySelector('[data-testid="previous-question"]') as HTMLButtonElement)
+        .disabled,
     ).toBe(false);
     expect(
       (lastElement.querySelector('[data-testid="next-question"]') as HTMLButtonElement).disabled,
@@ -139,14 +156,41 @@ describe('QuestionPanel', () => {
     element.querySelectorAll<HTMLInputElement>('input[type="radio"]')[2].click();
 
     expect(emitted).toEqual([]);
-    expect(
-      element.querySelectorAll<HTMLInputElement>('input[type="radio"]')[2].disabled,
-    ).toBe(true);
+    expect(element.querySelectorAll<HTMLInputElement>('input[type="radio"]')[2].disabled).toBe(
+      true,
+    );
   });
 
   it('avisa cuando la pregunta está anulada', () => {
     const fixture = createPanel(2);
     expect(text(fixture)).toContain('Anul·lada');
+  });
+
+  it('ofrece «Veure a la guia d’estudi» con la página de la guía de la pregunta', () => {
+    const fixture = createPanel();
+    const element = fixture.nativeElement as HTMLElement;
+    const button = element.querySelector<HTMLButtonElement>(
+      '[data-testid="question-study-reference"]',
+    );
+
+    expect(button).not.toBeNull();
+    expect(button?.textContent).toContain('Veure a la guia d’estudi (pàg. 210)');
+    expect(button?.getAttribute('title')).toContain('Tema 5');
+  });
+
+  it('emite la referencia de la guía al pulsar el botón', () => {
+    const fixture = createPanel();
+    const element = fixture.nativeElement as HTMLElement;
+    const emitted: StudyReference[] = [];
+    fixture.componentInstance.studyReferenceRequested.subscribe((reference) =>
+      emitted.push(reference),
+    );
+
+    element.querySelector<HTMLButtonElement>('[data-testid="question-study-reference"]')?.click();
+
+    expect(emitted).toEqual([
+      { page: 210, label: 'Temari específic · Tema 5 · 5.1 Pesca', anchor: 'translocació' },
+    ]);
   });
 
   it('muestra un aviso si el examen no tiene preguntas', () => {

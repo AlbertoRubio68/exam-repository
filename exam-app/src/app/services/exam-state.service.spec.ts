@@ -11,6 +11,7 @@ function buildExam(): ExamConfig {
     examId: 'test-exam',
     title: 'Examen de prueba',
     pdfUrl: '/documents/test.pdf',
+    studyPdfUrl: '/documents/study.pdf',
     questions: [
       {
         id: 1,
@@ -18,6 +19,7 @@ function buildExam(): ExamConfig {
         options: ['A', 'B', 'C', 'D'],
         correctAnswer: 0,
         pdfReference: { page: 1, label: 'Página 1' },
+        studyReference: { page: 101, label: 'Guia · página 101' },
         explanation: 'Explicación 1',
       },
       {
@@ -26,6 +28,7 @@ function buildExam(): ExamConfig {
         options: ['A', 'B', 'C', 'D'],
         correctAnswer: 1,
         pdfReference: { page: 2, label: 'Página 2' },
+        studyReference: { page: 102, label: 'Guia · página 102' },
         explanation: 'Explicación 2',
       },
       {
@@ -34,6 +37,7 @@ function buildExam(): ExamConfig {
         options: ['A', 'B', 'C', 'D'],
         correctAnswer: 2,
         pdfReference: { page: 3, label: 'Página 3' },
+        studyReference: { page: 103, label: 'Guia · página 103' },
         explanation: 'Explicación 3',
       },
     ],

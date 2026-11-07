@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { ExamQuestion } from '../../models/exam.model';
+import { ExamQuestion, StudyReference } from '../../models/exam.model';
 
 /** Letras usadas para etiquetar las opciones de respuesta (A, B, C, D...). */
 const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -46,6 +46,9 @@ export class QuestionPanel {
   /** Emite la opción marcada por el usuario. */
   readonly answerSelected = output<AnswerSelection>();
 
+  /** Emite la referencia de la guía de estudio que el usuario quiere consultar. */
+  readonly studyReferenceRequested = output<StudyReference>();
+
   readonly total = computed(() => this.questions().length);
 
   readonly currentQuestion = computed<ExamQuestion | undefined>(
@@ -78,6 +81,11 @@ export class QuestionPanel {
       return;
     }
     this.answerSelected.emit({ questionId: question.id, optionIndex });
+  }
+
+  /** Pide consultar en la guía de estudio la pregunta visible. */
+  openStudyReference(question: ExamQuestion): void {
+    this.studyReferenceRequested.emit(question.studyReference);
   }
 
   /** Navega a un índice concreto, acotándolo al rango válido de preguntas. */

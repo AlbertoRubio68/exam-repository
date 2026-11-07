@@ -9,6 +9,7 @@ function makeQuestion(overrides: Partial<ExamQuestion> & { id: number }): ExamQu
     options: ['Opció A', 'Opció B', 'Opció C', 'Opció D'],
     correctAnswer: 0,
     pdfReference: { page: 1, label: `Pàgina 1 · pregunta ${overrides.id}` },
+    studyReference: { page: 100, label: `Guia · pregunta ${overrides.id}`, anchor: 'fragment' },
     explanation: 'Justificació de prova.',
     ...overrides,
   };

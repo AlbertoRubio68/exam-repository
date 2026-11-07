@@ -10,6 +10,11 @@ function makeQuestion(overrides: Partial<ExamQuestion> & { id: number }): ExamQu
     options: ['Opció A', 'Opció B', 'Opció C', 'Opció D'],
     correctAnswer: 0,
     pdfReference: { page: overrides.id, label: `Pàgina ${overrides.id}` },
+    studyReference: {
+      page: 100 + overrides.id,
+      label: `Guia · Tema ${overrides.id}`,
+      anchor: `fragment ${overrides.id}`,
+    },
     explanation: `Justificació ${overrides.id}.`,
     ...overrides,
   };
@@ -36,6 +41,8 @@ describe('ExamResults', () => {
     await fixture.whenStable();
   };
 
+  const element = (): HTMLElement => fixture.nativeElement as HTMLElement;
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({ imports: [ExamResults] }).compileComponents();
     pdfNavigation = TestBed.inject(PdfNavigationService);
@@ -43,11 +50,12 @@ describe('ExamResults', () => {
     fixture.componentRef.setInput('questions', QUESTIONS);
     fixture.componentRef.setInput('answers', ANSWERS);
     fixture.componentRef.setInput('pdfUrl', '/documents/exam.pdf');
+    fixture.componentRef.setInput('studyPdfUrl', '/documents/study.pdf');
     await render();
   });
 
   it('muestra el resumen de la corrección', () => {
-    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    const text = element().textContent ?? '';
 
     expect(text).toContain('1 de 3 preguntes correctes');
     expect(text).toContain('33,33');
@@ -58,74 +66,104 @@ describe('ExamResults', () => {
   });
 
   it('filtra las preguntas por resultado', async () => {
-    const tabs = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('[role="tab"]'),
-    );
+    const tabs = Array.from(element().querySelectorAll<HTMLButtonElement>('[role="tab"]'));
     const failedTab = tabs.find((tab) => tab.textContent?.includes('Fallades'));
     expect(failedTab).toBeDefined();
 
     failedTab?.click();
     await render();
 
-    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('ol > li > button');
+    const rows = element().querySelectorAll('ol > li > button');
     expect(rows.length).toBe(1);
     expect(rows[0].textContent).toContain('Pregunta 2');
   });
 
-  it('salta a la página del PDF al pulsar una pregunta fallida', async () => {
-    const goToPage = vi.spyOn(pdfNavigation, 'goToPage');
+  it('muestra la referencia a la guía de estudio (no la del cuadernillo)', () => {
+    const failedRow = Array.from(
+      element().querySelectorAll<HTMLButtonElement>('ol > li > button'),
+    )[1];
+
+    expect(failedRow.textContent).toContain('Guia · Tema 2');
+    expect(failedRow.textContent).toContain('Guia pàg. 102');
+    expect(failedRow.textContent).not.toContain('Pàgina 2');
+  });
+
+  it('salta a la página de la guía de estudio al pulsar una pregunta fallida', () => {
+    const goToStudyPage = vi.spyOn(pdfNavigation, 'goToStudyPage');
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
 
     const failedRow = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-        'ol > li > button',
-      ),
+      element().querySelectorAll<HTMLButtonElement>('ol > li > button'),
     )[1];
     failedRow?.click();
 
-    expect(goToPage).toHaveBeenCalledWith(2);
-    // Sin visor conectado se abre el PDF en una pestaña nueva en esa página.
-    expect(open).toHaveBeenCalledWith('/documents/exam.pdf#page=2', '_blank', 'noopener');
+    expect(goToStudyPage).toHaveBeenCalledWith(102);
+    // Sin visor conectado se abre la guía en una pestaña nueva en esa página.
+    expect(open).toHaveBeenCalledWith('/documents/study.pdf#page=102', '_blank', 'noopener');
   });
 
-  it('con el visor PDF conectado no abre pestañas y hace el salto interno', async () => {
+  it('con el visor PDF conectado no abre pestañas y hace el salto interno a la guía', () => {
     const viewer = vi.fn();
     pdfNavigation.registerViewer(viewer);
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
 
     const failedRow = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-        'ol > li > button',
-      ),
+      element().querySelectorAll<HTMLButtonElement>('ol > li > button'),
     )[1];
     failedRow?.click();
 
-    expect(viewer).toHaveBeenCalledWith(2);
+    expect(viewer).toHaveBeenCalledWith({ document: 'study', page: 102 });
     expect(open).not.toHaveBeenCalled();
   });
 
-  it('emite la referencia del PDF al saltar', async () => {
-    const jumped: number[] = [];
-    fixture.componentInstance.referenceJumped.subscribe((reference) => jumped.push(reference.page));
+  it('emite el destino de la guía al saltar', () => {
+    const jumped: { document: string; page: number }[] = [];
+    fixture.componentInstance.referenceJumped.subscribe((reference) => jumped.push(reference));
     vi.spyOn(window, 'open').mockReturnValue(null);
 
     const failedRow = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-        'ol > li > button',
-      ),
+      element().querySelectorAll<HTMLButtonElement>('ol > li > button'),
     )[1];
     failedRow?.click();
 
-    expect(jumped).toEqual([2]);
+    expect(jumped).toEqual([{ document: 'study', page: 102 }]);
   });
 
-  it('emite retry al pulsar "Torna a intentar"', async () => {
+  it('mantiene el enlace histórico al cuadernillo del cuestionario', () => {
+    const goToQuestionnairePage = vi.spyOn(pdfNavigation, 'goToQuestionnairePage');
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    const links = element().querySelectorAll<HTMLAnchorElement>(
+      '[data-testid="result-questionnaire-link"]',
+    );
+    links[1]?.click();
+
+    expect(goToQuestionnairePage).toHaveBeenCalledWith(2);
+    expect(open).toHaveBeenCalledWith('/documents/exam.pdf#page=2', '_blank', 'noopener');
+  });
+
+  it('marca las referencias aproximadas como needsReview', () => {
+    const questions = [
+      makeQuestion({ id: 1, correctAnswer: 0 }),
+      makeQuestion({
+        id: 2,
+        correctAnswer: 0,
+        studyReference: { page: 398, label: 'Guia · flora', needsReview: true },
+      }),
+    ];
+    fixture.componentRef.setInput('questions', questions);
+    fixture.detectChanges();
+
+    expect(element().textContent).toContain('Referència aproximada');
+  });
+
+  it('emite retry al pulsar "Torna a intentar"', () => {
     const retry = vi.fn();
     fixture.componentInstance.retry.subscribe(retry);
 
-    const button = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
-    ).find((item) => item.textContent?.includes('Torna a intentar'));
+    const button = Array.from(element().querySelectorAll<HTMLButtonElement>('button')).find(
+      (item) => item.textContent?.includes('Torna a intentar'),
+    );
 
     button?.click();
 
